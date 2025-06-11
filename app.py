@@ -10,6 +10,7 @@ import dash_bootstrap_components as dbc
 import webbrowser
 import threading
 import time
+import os
 
 class ZestMoneyAnalytics:
     def __init__(self):
@@ -1191,7 +1192,7 @@ class ZestMoneyAnalytics:
         return fig
 
 def main():
-    """Main execution function with auto-launch"""
+    """Main execution function optimized for Heroku deployment"""
     try:
         print("\n🚀 INITIALIZING ZESTMONEY ANALYTICS PLATFORM...")
         
@@ -1203,6 +1204,14 @@ def main():
         print("\n🎛️ CREATING INTERACTIVE DASHBOARD...")
         app = analytics.create_app()
         print("✅ Dashboard Created Successfully")
+        
+        # Configure for deployment
+        server = app.server
+        
+        # Get port from environment variable (Heroku sets this)
+        port = int(os.environ.get('PORT', 8050))
+        host = os.environ.get('HOST', '0.0.0.0')
+        debug = os.environ.get('DEBUG', 'False').lower() == 'true'
         
         # Print summary
         print("\n" + "=" * 80)
@@ -1218,20 +1227,23 @@ def main():
         print("└─ Risk Assessment")
         print("=" * 80)
         
-        # Auto-launch browser
-        def open_browser():
-            time.sleep(1.5)
-            webbrowser.open_new('http://127.0.0.1:8050/')
-        
-        print("\n📊 LAUNCHING DASHBOARD...")
-        print("📍 Available at: http://127.0.0.1:8050/")
-        print("🔧 Opening browser automatically...")
-        
-        # Start browser in separate thread
-        threading.Timer(1, open_browser).start()
+        # Only auto-launch browser in development
+        if debug and port == 8050:
+            def open_browser():
+                time.sleep(1.5)
+                webbrowser.open_new(f'http://{host}:{port}/')
+            
+            print(f"\n📊 LAUNCHING DASHBOARD...")
+            print(f"📍 Available at: http://{host}:{port}/")
+            print("🔧 Opening browser automatically...")
+            
+            # Start browser in separate thread
+            threading.Timer(1, open_browser).start()
+        else:
+            print(f"\n📊 DASHBOARD READY ON PORT {port}")
         
         # Run the application
-        app.run(debug=False, host='127.0.0.1', port=8050)
+        app.run(debug=debug, host=host, port=port)
         
     except Exception as e:
         print(f"\n❌ ERROR: {str(e)}")
@@ -1240,6 +1252,12 @@ def main():
     
     finally:
         print("\n✅ SESSION COMPLETE")
+
+# Expose server for Heroku
+app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
+analytics = ZestMoneyAnalytics()
+app = analytics.create_app()
+server = app.server
 
 if __name__ == "__main__":
     main()
