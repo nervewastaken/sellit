@@ -118,8 +118,18 @@ class ZestMoneyAnalytics:
         """Create the Dash application with proper tab structure"""
         app = dash.Dash(
             __name__, 
-            external_stylesheets=[dbc.themes.BOOTSTRAP]
+            external_stylesheets=[dbc.themes.BOOTSTRAP],
+            serve_locally=True,  # Serve assets locally
+            suppress_callback_exceptions=True,
+            meta_tags=[
+                {"name": "viewport", "content": "width=device-width, initial-scale=1"}
+            ]
         )
+        
+        # Configure app for production
+        app.config.suppress_callback_exceptions = True
+        app.scripts.config.serve_locally = True
+        app.css.config.serve_locally = True
         
         # Define custom CSS styles for professional look
         app.index_string = '''
@@ -127,10 +137,14 @@ class ZestMoneyAnalytics:
         <html>
             <head>
                 {%metas%}
-                <title>{%title%}</title>
+                <title>ZestMoney Analytics Dashboard</title>
                 {%favicon%}
                 {%css%}
                 <style>
+                    /* Ensure Plotly loads properly */
+                    .js-plotly-plot .plotly .modebar {
+                        padding-top: 5px;
+                    }
                     .custom-tabs-container {
                         width: 100%;
                     }
@@ -166,7 +180,29 @@ class ZestMoneyAnalytics:
                         padding: 20px;
                         margin-bottom: 20px;
                     }
+                    /* Loading spinner */
+                    .loading-spinner {
+                        border: 4px solid #f3f3f3;
+                        border-top: 4px solid #0066CC;
+                        border-radius: 50%;
+                        width: 40px;
+                        height: 40px;
+                        animation: spin 2s linear infinite;
+                        margin: 20px auto;
+                    }
+                    @keyframes spin {
+                        0% { transform: rotate(0deg); }
+                        100% { transform: rotate(360deg); }
+                    }
                 </style>
+                <script>
+                    // Ensure Plotly loads before initializing
+                    window.plotlyConfig = {
+                        'displayModeBar': true,
+                        'displaylogo': false,
+                        'modeBarButtonsToRemove': ['pan2d', 'lasso2d', 'select2d']
+                    };
+                </script>
             </head>
             <body>
                 {%app_entry%}
@@ -1242,8 +1278,15 @@ def main():
         else:
             print(f"\n📊 DASHBOARD READY ON PORT {port}")
         
-        # Run the application
-        app.run(debug=debug, host=host, port=port)
+        # Run the application with threading support
+        app.run_server(
+            debug=debug, 
+            host=host, 
+            port=port,
+            threaded=True,
+            dev_tools_hot_reload=False,
+            dev_tools_silence_routes_logging=True
+        )
         
     except Exception as e:
         print(f"\n❌ ERROR: {str(e)}")
@@ -1253,10 +1296,15 @@ def main():
     finally:
         print("\n✅ SESSION COMPLETE")
 
-# Expose server for Heroku
-app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
-analytics = ZestMoneyAnalytics()
-app = analytics.create_app()
+# Initialize app for Heroku
+def create_app():
+    """Factory function for Heroku deployment"""
+    analytics = ZestMoneyAnalytics()
+    return analytics.create_app()
+
+# Create app instance for gunicorn
+analytics_instance = ZestMoneyAnalytics()
+app = analytics_instance.create_app()
 server = app.server
 
 if __name__ == "__main__":
